@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      # Includes the differential tests: PowerShell (pwsh on Linux/macOS, Windows PowerShell 5.1 on Windows),
+      # Node.js, cscript and cmd evaluate the obfuscator's string-building half and must agree with it.
+      - name: unit, round-trip, robustness and interpreter tests
+        run: python -m unittest discover -s tests -v
+      - name: unwrap the generated samples with the installed CLI
+        shell: bash
+        run: |
+          pip install .
+          unwrap --version
+          python examples/make_samples.py
+          for f in examples/samples/*; do unwrap "$f" --no-color; done
+          unwrap examples/samples/dropper.bat --json | python -c "import json,sys; d=json.load(sys.stdin); assert 'stage2.ps1' in d['final'], d['final']"
