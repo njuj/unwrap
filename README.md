@@ -8,6 +8,8 @@
 ![verified](https://img.shields.io/badge/verified_against-PowerShell_·_Node_·_cscript_·_cmd-00ff9c?labelColor=0b0f17)
 ![license](https://img.shields.io/badge/license-MIT-00ff9c?labelColor=0b0f17)
 
+<p align="center"><img src="docs/banner.svg" width="100%" alt="unwrap: how it works"/></p>
+
 <p align="center"><img src="docs/demo.svg" width="100%" alt="unwrap running in a terminal"/></p>
 
 ```text
