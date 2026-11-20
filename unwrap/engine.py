@@ -82,13 +82,13 @@ def _rewrite(layer: Layer) -> None:
     layer.text = text
 
 
-def unwrap(text: str, max_layers: int = MAX_LAYERS) -> Result:
+def unwrap(text: str, max_layers: int = MAX_LAYERS, language: str | None = None) -> Result:
     if len(text) > MAX_INPUT:
         raise ValueError(f"input is larger than {MAX_INPUT // (1024 * 1024)} MB")
     layers: list[Layer] = []
     artifacts: list[Artifact] = []
     seen: set[str] = set()
-    current, stopped, language = text, "nothing left to decode", None
+    current, stopped = text, "nothing left to decode"
     for index in range(max_layers):
         layer = Layer(index, language or detect_language(current), current, current)
         _rewrite(layer)

