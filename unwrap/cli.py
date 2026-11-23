@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         for layer in result.layers:
             (args.layers_dir / f"layer-{layer.index:02d}.txt").write_text(layer.text, encoding="utf-8")
     if args.json:
-        print(json.dumps(to_json(result, name, args.no_defang, container), indent=2, ensure_ascii=False))
+        print(json.dumps(to_json(result, name, args.no_defang, container), indent=2))   # ASCII: valid JSON in any console encoding
     else:
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(errors="replace")

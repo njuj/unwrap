@@ -77,6 +77,12 @@ class Cli(unittest.TestCase):
         _, out, _ = run("-", "--json", stdin="iex ('Write-'+'Output 2')".encode("utf-16"))
         self.assertEqual(json.loads(out)["final"], "Write-Output 2")
 
+    def test_json_is_ascii(self):
+        # a Windows pipe is cp1252: non-ASCII text must be escaped, not printed raw
+        _, out, _ = run("-c", "iex ('Write-Output ' + 'مرحبا ✓')", "--json")
+        out.encode("ascii")
+        self.assertEqual(json.loads(out)["final"], "Write-Output مرحبا ✓")
+
     def test_layers_dir(self):
         target = Path(self.tmp.name, "layers")
         run(str(self.path), "--layers-dir", str(target), "--no-color")
