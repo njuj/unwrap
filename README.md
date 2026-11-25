@@ -1,5 +1,7 @@
 # unwrap
 
+[![Part of Cryptid Security](https://img.shields.io/badge/part_of-Cryptid%20Security-00ff9c?style=flat-square&labelColor=0d1117)](https://github.com/cryptid-security)
+
 **Peel the obfuscation off malicious PowerShell, JavaScript, VBScript and batch, layer by layer, without ever running them.** It opens the files they arrive in, too: Windows shortcuts (`.lnk`) and HTML applications (`.hta`, `.html`). Base64, gzip, XOR, `-EncodedCommand`, format strings, char codes, reversing, junk-replace, packers and Invoke-Obfuscation's tricks all come off, statically, and every layer stays on screen. Then it pulls out the IOCs and maps what the script does to MITRE ATT&CK. Pure Python standard library, zero dependencies.
 
 [![ci](https://github.com/njuj/unwrap/actions/workflows/ci.yml/badge.svg)](https://github.com/njuj/unwrap/actions/workflows/ci.yml)
